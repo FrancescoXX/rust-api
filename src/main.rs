@@ -63,9 +63,7 @@ fn handle_client(mut stream: TcpStream) {
             } else if request.starts_with("POST /users") {
                 handle_post_request(&request)
             } else if request.starts_with("GET /users") {
-                ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), handle_get_all_request(&request))
-            } else if request.starts_with("GET /hello") {
-                ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), "Hello world".to_owned())
+                handle_get_all_request(&request)
             } else if request.starts_with("DELETE /users") {
                 handle_delete_request(&request)
             } else if request.starts_with("PUT /users") {
@@ -127,30 +125,11 @@ fn handle_update_request(request: &str) -> (String, String) {
     }
 }
 
-// Delete user
-fn handle_delete_request(request: &str) -> (String, String) {
-    let mut client = Client::connect(DB_URL, NoTls).unwrap();
 
-    let id = request
-        .split(" ")
-        .nth(1)
-        .and_then(|url| url.split("?").nth(1))
-        .and_then(|params| params.split("=").nth(1))
-        .and_then(|id_str| id_str.parse::<i32>().ok())
-        .expect("Failed to parse ID");
-
-    match client.execute("DELETE FROM users WHERE id=$1", &[&id]) {
-        Ok(_) => ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), format!("Deleted user")),
-        Err(e) => (
-            "HTTP/1.1 500 Internal Server Error\r\n\r\n".to_owned(),
-            format!("Error deleting user: {}", e),
-        ),
-    }
-}
 
 
 //Get all users
-fn handle_get_all_request(_request: &str) -> String {
+fn handle_get_all_request(_request: &str) -> (String, String) {
     let mut client = Client::connect(DB_URL, NoTls).unwrap();
     let mut users: Vec<User> = Vec::new();
 
@@ -168,9 +147,13 @@ fn handle_get_all_request(_request: &str) -> String {
         users.push(user);
     }
 
-    let users_json = serde_json::to_string(&users).unwrap();
-    users_json
+    let json_string = serde_json::to_string(&users).unwrap();
+    let status_line = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", json_string.len());
+
+    (status_line, json_string)
 }
+
+
 
 //Create a new user
 fn handle_post_request(request: &str) -> (String, String) {
@@ -193,4 +176,25 @@ fn handle_post_request(request: &str) -> (String, String) {
     }
 
     ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), format!("Received data: {}", request_body))
+}
+
+// Delete user
+fn handle_delete_request(request: &str) -> (String, String) {
+    let mut client = Client::connect(DB_URL, NoTls).unwrap();
+
+    let id = request
+        .split(" ")
+        .nth(1)
+        .and_then(|url| url.split("?").nth(1))
+        .and_then(|params| params.split("=").nth(1))
+        .and_then(|id_str| id_str.parse::<i32>().ok())
+        .expect("Failed to parse ID");
+
+    match client.execute("DELETE FROM users WHERE id=$1", &[&id]) {
+        Ok(_) => ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), format!("Deleted user")),
+        Err(e) => (
+            "HTTP/1.1 500 Internal Server Error\r\n\r\n".to_owned(),
+            format!("Error deleting user: {}", e),
+        ),
+    }
 }
