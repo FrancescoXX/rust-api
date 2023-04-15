@@ -120,14 +120,6 @@ fn find_user_by_id(id: &str) -> Result<User, PostgresError> {
 
 //Update user
 fn handle_update_request(request: &str) -> (String, String) {
-    match update_one(request) {
-        Ok(_) => (),
-        Err(_) => (),
-    }
-    ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), format!("Update user"))
-}
-
-fn update_one(request: &str) -> Result<(), PostgresError> {
     let request_body = request.split("\r\n\r\n").last().unwrap_or("");
     let user: User = serde_json::from_str(request_body).unwrap();
     let mut client = Client::connect(DB_URL, NoTls).unwrap();
@@ -140,10 +132,10 @@ fn update_one(request: &str) -> Result<(), PostgresError> {
         .and_then(|id_str| id_str.parse::<i32>().ok())
         .expect("Failed to parse ID");
 
-    client
-        .execute("UPDATE users SET name=$2, email=$3 WHERE id=$1", &[&id, &user.name, &user.email])
-        .unwrap();
-    Ok(())
+    match client.execute("UPDATE users SET name=$2, email=$3 WHERE id=$1", &[&id, &user.name, &user.email]) {
+        Ok(_) => ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), format!("Updated user")),
+        Err(e) => ("HTTP/1.1 500 Internal Server Error\r\n\r\n".to_owned(), format!("Error updating user: {}", e)),
+    }
 }
 
 // Delete user
