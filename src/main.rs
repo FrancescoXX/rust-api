@@ -4,6 +4,7 @@ use std::net::{ TcpListener, TcpStream };
 use std::io::{ Read, Write };
 use std::env;
 
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -11,12 +12,6 @@ extern crate serde_derive;
 #[derive(Serialize, Deserialize, Debug)]
 struct User {
     pub id: i32,
-    pub name: String,
-    pub email: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct DbUser {
     pub name: String,
     pub email: String,
 }
@@ -64,8 +59,7 @@ fn handle_client(mut stream: TcpStream) {
             let request = String::from_utf8_lossy(&buffer[..size]);
 
             let (status_line, content) = if request.starts_with("GET /users/") {
-                let (status_line, content) = handle_get_user_request(&request);
-                (status_line, content)
+                handle_get_user_request(&request)
             } else if request.starts_with("POST /users") {
                 handle_post_request(&request)
             } else if request.starts_with("GET /users") {
@@ -89,6 +83,7 @@ fn handle_client(mut stream: TcpStream) {
     }
 }
 
+// Get one user
 fn handle_get_user_request(request: &str) -> (String, String) {
     let id_str = request.split('/').nth(2).unwrap_or("");
     let id = id_str.split_whitespace().next().unwrap_or("");
@@ -111,7 +106,6 @@ fn handle_get_user_request(request: &str) -> (String, String) {
     }
 }
 
-// Get one user
 fn find_user_by_id(id: &str) -> Result<User, PostgresError> {
     let id_int = id.parse::<i32>().unwrap();
     let mut client = Client::connect(DB_URL, NoTls)?;
@@ -206,20 +200,21 @@ fn handle_get_all_request(_request: &str) -> String {
 fn handle_post_request(request: &str) -> (String, String) {
     let request_body = request.split("\r\n\r\n").last().unwrap_or("");
 
-    match create_one(request_body) {
-        Ok(_) => (),
-        Err(_) => (),
+    #[derive(Serialize, Deserialize, Debug)]
+    struct NewUser {
+        pub name: String,
+        pub email: String,
+    }
+
+    let user: NewUser = match serde_json::from_str(request_body) {
+        Ok(user) => user,
+        Err(_) => return ("HTTP/1.1 400 BAD REQUEST\r\n\r\n".to_owned(), "Invalid request body".to_owned()),
+    };
+
+    let mut client = Client::connect(DB_URL, NoTls).unwrap();
+    if let Err(_) = client.execute("INSERT INTO users (name, email) VALUES ($1, $2)", &[&user.name, &user.email]) {
+        return ("HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n".to_owned(), "Failed to insert user into database".to_owned());
     }
 
     ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), format!("Received data: {}", request_body))
-}
-
-fn create_one(request_body: &str) -> Result<(), PostgresError> {
-    let user: DbUser = serde_json::from_str(request_body).unwrap();
-
-    let mut client = Client::connect(DB_URL, NoTls).unwrap();
-
-    client.execute("INSERT INTO users (name, email) VALUES ($1, $2)", &[&user.name, &user.email])?;
-
-    Ok(())
 }
