@@ -89,33 +89,22 @@ fn handle_get_user_request(request: &str) -> (String, String) {
     let id = id_str.split_whitespace().next().unwrap_or("");
     if let Ok(id_int) = id.parse::<i32>() {
         let id_str = id_int.to_string();
-        match find_user_by_id(&id_str) {
-            Ok(user) => {
-                let response_body = serde_json::to_string(&user).unwrap();
-                (
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n".to_owned(),
-                    response_body,
-                )
-            }
-            Err(e) => {
-                ("HTTP/1.1 500 INTERNAL SERVER ERROR\r\n\r\n".to_owned(), format!("Error: {}", e))
-            }
-        }
+        let mut client = Client::connect(DB_URL, NoTls).unwrap();
+        let row = client.query_one("SELECT * FROM users WHERE id = $1", &[&id_int]).unwrap();
+
+        let user = User {
+            id: row.get(0),
+            name: row.get(1),
+            email: row.get(2),
+        };
+        let response_body = serde_json::to_string(&user).unwrap();
+        (
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n".to_owned(),
+            response_body,
+        )
     } else {
         ("HTTP/1.1 400 BAD REQUEST\r\n\r\n".to_owned(), format!("Invalid ID: {}", id_str))
     }
-}
-
-fn find_user_by_id(id: &str) -> Result<User, PostgresError> {
-    let id_int = id.parse::<i32>().unwrap();
-    let mut client = Client::connect(DB_URL, NoTls)?;
-    let row = client.query_one("SELECT * FROM users WHERE id = $1", &[&id_int])?;
-
-    Ok(User {
-        id: row.get(0),
-        name: row.get(1),
-        email: row.get(2),
-    })
 }
 
 //Update user
