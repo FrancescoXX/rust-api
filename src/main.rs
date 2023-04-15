@@ -148,17 +148,6 @@ fn update_one(request: &str) -> Result<(), PostgresError> {
 
 // Delete user
 fn handle_delete_request(request: &str) -> (String, String) {
-    match delete_one(request) {
-        Ok(_) => ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), format!("Deleted user")),
-        Err(e) =>
-            (
-                "HTTP/1.1 500 Internal Server Error\r\n\r\n".to_owned(),
-                format!("Error deleting user: {}", e),
-            ),
-    }
-}
-
-fn delete_one(request: &str) -> Result<(), PostgresError> {
     let mut client = Client::connect(DB_URL, NoTls).unwrap();
 
     let id = request
@@ -169,9 +158,15 @@ fn delete_one(request: &str) -> Result<(), PostgresError> {
         .and_then(|id_str| id_str.parse::<i32>().ok())
         .expect("Failed to parse ID");
 
-    client.execute("DELETE FROM users WHERE id=$1", &[&id]).unwrap();
-    Ok(())
+    match client.execute("DELETE FROM users WHERE id=$1", &[&id]) {
+        Ok(_) => ("HTTP/1.1 200 OK\r\n\r\n".to_owned(), format!("Deleted user")),
+        Err(e) => (
+            "HTTP/1.1 500 Internal Server Error\r\n\r\n".to_owned(),
+            format!("Error deleting user: {}", e),
+        ),
+    }
 }
+
 
 //Get all users
 fn handle_get_all_request(_request: &str) -> String {
