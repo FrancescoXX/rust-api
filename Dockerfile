@@ -3,8 +3,7 @@ FROM rust:1.67 as builder
 
 WORKDIR /app
 
-ARG DATABASE_URL
-ENV DATABASE_URL=$DATABASE_URL
+ENV DATABASE_URL=postgres://postgres:postgres@db:5432/postgres
 
 COPY . .
 
