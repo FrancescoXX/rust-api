@@ -15,6 +15,13 @@ struct User {
     pub email: String,
 }
 
+// Define the NewUser struct
+#[derive(Serialize, Deserialize, Debug)]
+struct NewUser {
+    pub name: String,
+    pub email: String,
+}
+
 // Environment variables defined in the docker compose to connect ot the DB
 const DB_URL: &'static str = env!("DATABASE_URL");
 
@@ -134,17 +141,7 @@ fn handle_get_all_request(_request: &str) -> (String, String) {
 
 //Create a new user
 fn handle_post_request(request: &str) -> (String, String) {
-    // Define the NewUser struct
-    #[derive(Serialize, Deserialize, Debug)]
-    struct NewUser {
-        pub name: String,
-        pub email: String,
-    }
-
-    let request_body = request.split("\r\n\r\n").last().unwrap_or("");
-    let user: Result<NewUser, _> = serde_json::from_str(request_body);
-
-    match user {
+    match deserialize_user_from_request_body(&request) {
         Ok(user) => {
             let mut client = Client::connect(DB_URL, NoTls).unwrap();
             if
@@ -161,7 +158,7 @@ fn handle_post_request(request: &str) -> (String, String) {
 
             (
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n".to_owned(),
-                request_body.to_string(),
+                request.split("\r\n\r\n").last().unwrap_or("").to_string(),
             )
         }
         Err(_) =>
@@ -173,13 +170,6 @@ fn handle_post_request(request: &str) -> (String, String) {
 fn handle_update_request(request: &str) -> (String, String) {
     // Get the id from the request
     let id = get_id(&request);
-
-    // Define the NewUser struct
-    #[derive(Serialize, Deserialize, Debug)]
-    struct NewUser {
-        pub name: String,
-        pub email: String,
-    }
 
     // Deserialize the JSON body into a NewUser struct.
     let request_body = request.split("\r\n\r\n").last().unwrap_or("");
@@ -248,4 +238,10 @@ fn handle_delete_request(request: &str) -> (String, String) {
 
 fn get_id(request: &str) -> &str {
     request.split('/').nth(2).unwrap_or_default().split_whitespace().next().unwrap_or_default()
+}
+
+fn deserialize_user_from_request_body(request: &str) -> Result<NewUser, serde_json::Error> {
+    let request_body = request.split("\r\n\r\n").last().unwrap_or("");
+    let user: Result<NewUser, _> = serde_json::from_str(request_body);
+    user
 }
