@@ -1,21 +1,5 @@
-Rust CRUD API with Rust, Postgres, Docker
+To test it
 
-To run it:
 ```
-docker compose up -d
+docker compose up
 ```
-
-To stop it:
-```
-docker compose down
-```
-
-Tesing tools:
-- Postman
-- Tableplus
-
-Todos:
-- replace nested if with match
-- add 8080 as env variable
-- add error handling
-- improve Dockerfile
