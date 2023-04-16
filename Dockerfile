@@ -8,6 +8,10 @@ ENV DATABASE_URL=$DATABASE_URL
 
 COPY . .
 
+# Run cargo clean to remove any cached build artifacts
+RUN cargo clean
+
+# Build the project
 RUN cargo build --release
 
 # Production stage
